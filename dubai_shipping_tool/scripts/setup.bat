@@ -5,68 +5,114 @@ cd /d "%~dp0\.."
 echo ============================================
 echo   Dubai Shipping Tool - Setup
 echo ============================================
-
 echo.
-echo [1/4] Checking Python...
+
+:: ========================================
+:: Step 1: Auto-install Python if missing
+:: ========================================
+echo [1/6] 检查 Python...
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Python not found. Please install Python 3.9+
+    echo Python 未安装，正在通过 winget 自动安装...
+    winget install Python.Python.3.12 --accept-package-agreements --accept-source-agreements --silent
+    if %errorlevel% neq 0 (
+        echo.
+        echo ERROR: 自动安装 Python 失败。
+        echo 请手动下载安装: https://www.python.org/downloads/
+        echo 安装时务必勾选 "Add Python to PATH"
+        pause
+        exit /b 1
+    )
+    :: Refresh PATH for current session
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH ^| findstr PATH') do set "PATH=%%b;%PATH%"
+    set "PATH=%LOCALAPPDATA%\Programs\Python\Python312;%LOCALAPPDATA%\Programs\Python\Python312\Scripts;%PATH%"
+    echo Python 安装完成，请重新打开此脚本继续。
+    echo.
     pause
-    exit /b 1
+    exit /b 0
 )
 python --version
-
 echo.
-echo [2/4] Setting up backend virtual environment...
+
+:: ========================================
+:: Step 2: Python virtual environment
+:: ========================================
+echo [2/6] 配置 Python 虚拟环境...
 cd backend
 if not exist ".venv" (
     python -m venv .venv
-    echo Virtual environment created.
+    echo 虚拟环境已创建.
 ) else (
-    echo Virtual environment already exists.
+    echo 虚拟环境已存在.
 )
 call .venv\Scripts\activate.bat
-pip install -r requirements.txt
+
+echo [3/6] 安装 Python 依赖（使用清华镜像源，国内更快）...
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to install Python dependencies.
+    echo ERROR: Python 依赖安装失败.
     pause
     exit /b 1
 )
+
+echo [4/6] 安装 Playwright 浏览器...
 python -m playwright install msedge
 cd ..
-
 echo.
-echo [3/4] Checking Node.js...
+
+:: ========================================
+:: Step 3: Auto-install Node.js if missing
+:: ========================================
+echo [5/6] 检查 Node.js...
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo ERROR: Node.js not found. Please install Node.js 18+
+    echo Node.js 未安装，正在通过 winget 自动安装...
+    winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent
+    if %errorlevel% neq 0 (
+        echo.
+        echo ERROR: 自动安装 Node.js 失败。
+        echo 请手动下载安装: https://nodejs.org
+        echo.
+        pause
+        exit /b 1
+    )
+    :: Refresh PATH
+    for /f "tokens=2*" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v PATH ^| findstr PATH') do set "PATH=%%b;%PATH%"
+    set "PATH=%ProgramFiles%\nodejs;%PATH%"
+    echo Node.js 安装完成，请重新打开此脚本继续。
+    echo.
     pause
-    exit /b 1
+    exit /b 0
 )
 node --version
-
 echo.
-echo [4/5] Installing frontend dependencies...
+
+:: ========================================
+:: Step 4: Frontend dependencies
+:: ========================================
+echo [6/6] 安装前端依赖（使用淘宝镜像源，国内更快）...
 cd frontend
+call npm config set registry https://registry.npmmirror.com
 call npm install
 if %errorlevel% neq 0 (
-    echo ERROR: Failed to install Node.js dependencies.
+    echo ERROR: 前端依赖安装失败.
     pause
     exit /b 1
 )
 cd ..
-
 echo.
-echo [5/5] Checking .env file...
+
+:: ========================================
+:: Create .env if missing
+:: ========================================
 if not exist ".env" (
-    copy .env.example .env
-    echo .env file created from .env.example.
+    copy .env.example .env >nul
+    echo .env 文件已创建.
 ) else (
-    echo .env file already exists.
+    echo .env 文件已存在，跳过.
 )
 
-echo.
 echo ============================================
-echo   Setup complete!
+echo   安装完成！双击 start.bat 启动系统
 echo ============================================
 pause
